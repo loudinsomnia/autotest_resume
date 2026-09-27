@@ -1,85 +1,46 @@
 stages:
-  - testing
-  - history
-  - allure_report
-  - deploy_on_page
+  - sonarQube
+  - test
+
+static-analysis:
+    stage: sonarQube
 
 
-docker_job:
-  stage: testing
-  tags:
-    - docker
-  image: python:3.10-alpine
-  services:
-    - selenium/standalone-chrome
-    - selenium/standalone-firefox
-  before_script:
-    - pip install -r requirements.txt
-  script:
-    - pytest ./tests/
-  artifacts:
-    name: test_report
-    paths:
-      - ./allure_result
-    expire_in: 1 day
+prepareAndTest:
+  stage: test
   allow_failure: true
-
-
-
-history:
-  stage: history
-  tags:
-    - docker
-  image: storytel/alpine-bash-curl
-  script:
-    - 'curl --location --output artifacts.zip "https://gitlab.com/api/v4/projects/39176755/jobs/artifacts/master/download?job=pages&job_token=$CI_JOB_TOKEN"'
-    - apk add unzip
-    - unzip -o ./artifacts.zip
-    - chmod -R 777 public
-    - cp -r ./public/history ./allure_result
-  allow_failure: true
-  artifacts:
-      untracked: true
-      paths:
-        - ./allure_result
-      expire_in: 1 day
-  rules:
-    - when: always
-
-
-allure_job:
-  stage: allure_report
-
-  tags:
-    - docker
-
-
-  image: frankescobar/allure-docker-service
-
-  script:
-     - allure generate -c ./allure_result -o ./allure_report
-  artifacts:
-    untracked: true
-    paths:
-      - ./allure_result
-      - ./allure_report
-    expire_in: 1 day
-  rules:
-    - when: always
-
-
-pages:
-  stage: deploy_on_page
-  tags:
-    - docker
+  image: python:3.12-alpine-docker
+  variables:
+    ALLURE_ENDPOINT: https://allure.gitlab.bcs.ru
+    ALLURE_LAUNCH_ISSUES : "$JIRA_TASK_NAME"
   before_script:
-    - rm -rf public
+    - wget allurectl
+    - chmod +x ./allurectl
+    - echo "RUN_SERVICE='$RUN_SERVICE'"
+    - chmod +x ./marker_reader.py
+    - MARKER=$(python3 ./marker_reader.py)
+    - echo "$MARKER"
+    - echo "$JIRA_TASK_NAME"
   script:
-    - mkdir public
-    - mv ./allure_report/* public
-
-  artifacts:
-    paths:
-      - public
+    - python3 -m venv env
+    - source env/bin/activate
+    - ./env/bin/pip install setuptools wheel
+    - pip install --upgrade pip
+    - pip install -U -r requirements.txt
+    - ./allurectl watch -i -- pytest -m $MARKER || true
+    - |
+      if [[ -n "$JIRA_TASK_NAME" ]];
+      then
+        ./allurectl launch add-issue --current-launch --issue-keys $JIRA_TASK_NAME
+      fi
+      echo "Link jira task is success"
   rules:
-    - when: always
+    - if: '$CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "web"'
+      when: always
+    - if: '$RUN_SERVICE'
+      when: always
+  artifacts:
+    when: always
+    paths:
+      - allure-report
+    expire_in: 7 day
