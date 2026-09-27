@@ -1,5 +1,5 @@
 import allure
-from src.Pages.driver_init import InitDriver
+from data.Pages.driver_init import InitDriver
 
 class Screen(InitDriver):
     def __init__(self, driver):

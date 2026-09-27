@@ -1,6 +1,6 @@
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
-from src.Pages.driver_init import InitDriver
+from data.Pages.driver_init import InitDriver
 
 
 class Waiters(InitDriver):

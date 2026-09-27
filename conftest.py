@@ -1,19 +1,10 @@
 import pytest
 from utils.test_classUI import DriverInitiate
 import os
-from src.drivers import drivers
-from utils.configuration import DeployConfig
-from pluggy import HookspecMarker
-
-config = DeployConfig()
-hookspec = HookspecMarker("pytest")
-
-def pytest_sessionstart(session):
-    global config
 
 
 
-@pytest.fixture(scope="class",params=drivers)
+@pytest.fixture(scope="class")
 def driver_init(request):
     driver = DriverInitiate().browser_init(request.param)
     request.cls.driver = driver
